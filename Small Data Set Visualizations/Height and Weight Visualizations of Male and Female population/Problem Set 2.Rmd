@@ -1,0 +1,149 @@
+---
+title: "S670 PS2"
+author: "Natasha Randall, Jeevan Rachepalli, Leo Huang"
+date: "January 19, 2018"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+graphics.off()
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+#Clean and Summarize the Data
+```{r}
+library(NHANES)
+
+#Return the subset of the dataset with adults (18 years old or older).
+adults = subset(NHANES, Age >= 18)
+dim(adults)
+
+#Extract the 4 columns needed for the subsequent analysis.
+adult = adults[,c("Gender","Age","Height","Weight")]
+
+#View summaries of relevant columns of data:
+head(adult)
+str(adult)
+summary(adult)
+
+#Count of rows with missing data.
+sum(!complete.cases(adult))
+# Less than 1% of missing data so we are going to drop those rows
+adult = adult[complete.cases(adult),]
+dim(adult)
+```
+
+#Q1
+```{r}
+library(ggplot2)
+
+#Create an overlapping density plot of Height by Gender (Female vs Male).
+ggplot(adult,aes(x=Height,fill=Gender)) + 
+  geom_histogram(position="identity", alpha=0.5, binwidth = 2.5) +
+  ggtitle("Height by Gender") +
+  xlab("Height (cm)") + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_fill_manual(values = c("female" = "light green", "male" = "blue"))
+
+#Create a boxplot plot by Gender.
+ggplot(adult,aes(x=Gender, y= Height)) + 
+  geom_boxplot(fill="light green") +
+  ggtitle("Height by Gender") +
+  ylab("Height (cm)") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Based on the graphs above, the heights of both groups (male and female) is nearly normal and have similar variance.
+
+```{r}
+#Plot two sample QQplot.
+male = adult$Height[adult$Gender == "male"]
+female = adult$Height[adult$Gender == "female"]
+qqplot(female, male, main="Two Sample QQPlot: Height (cm) by Gender")
+abline(0, 1)
+abline(14, 1, col='red')
+text(170, 195, labels="abline(14, 1)", col="red") 
+
+#Same two sample QQplot plotted with ggplot
+# adult.df = as.data.frame(qqplot(female,male,plot.it = FALSE))
+# ggplot(adult.df,aes(x = x, y = y)) + geom_point() + geom_abline() +
+#   geom_abline(intercept=14,slope=1,col='red')
+```
+
+As can be seen from the two sample qqplot, the distributions are well-approximated by an additive shift (an increase in intercept (mean) of approximately 14 cm in males compare with females). It should be noted that there is very slight deviation from this additive shift in the tails (the extreme values). 
+
+#Q2
+```{r}
+#Create an overlapping density plot of Height by Gender (Female vs Male).
+ggplot(adult, aes(x=Weight, fill=Gender)) + 
+  geom_histogram(position="identity", alpha=0.5, binwidth = 5) +
+  ggtitle("Weight by Gender") +
+  xlab("Weight (kg)") + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_fill_manual(values = c("female" = "light green", "male" = "blue"))
+
+#Create a boxplot plot by Gender.
+ggplot(adult,aes(x=Gender, y=Weight)) + 
+  geom_boxplot(fill="light green") +
+  ggtitle("Weight by Gender") +
+  ylab("Weight (kg)") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+The two graphs above show that the distributions of weight by gender (female vs male) are both positively skewed. The variance of both groups appear similar.
+
+```{r}
+#Plot two sample QQplot.
+male = (adult$Weight[adult$Gender == "male"])
+female = (adult$Weight[adult$Gender == "female"])
+qqplot(female,male, main="Two Sample QQPlot: Weight (kg) by Gender")
+abline(0, 1)
+abline(14, 1, col="red")
+text(160, 200, labels="abline(14, 1)", col="red") 
+
+#Same two sample QQplot plotted with ggplot
+# adult.df = as.data.frame(qqplot(female,male,plot.it = FALSE))
+# ggplot(adult.df,aes(x = x, y = y)) + geom_point() + geom_abline() +
+#   geom_abline(intercept=14,slope=1,col='red') + xlab("Female weights in Kilograms") +
+#   ylab("Male weights in Kilograms") + ggtitle("Male weight vs Female Weight")
+```
+
+As can be seen from the two sample qqplot, the distributions are well-approximately by an additive shift for around 80% of the distributions (an increase in intercept (mean) of approximately 14 kg in males compared with females). However, for higher weights (above approx. the 80th percentile), this is no longer true. Weights are much lower for men than an additive shift would predict. [It actually appears that weights are about the same for female and males in this part of the distributions.]
+
+#Q3
+```{r}
+library(tidyr)
+
+#Linear model of height predicted by gender.
+height.lm = lm(Height ~ Gender, data = adult)
+summary(height.lm)
+
+#Fitted and residual vales from model.
+adult.fitted = fitted(height.lm) - mean(fitted(height.lm))
+adult.res = residuals(height.lm)
+
+#Create a data frame of fitted and residual values from lm model.
+adult.lmdf = data.frame(Fitted=adult.fitted, Residuals=adult.res)
+
+#Must transform from wide format to long format to make residual-fit spread plot.
+adult.gather = gather(adult.lmdf, key=type, value=value, Fitted:Residuals)
+head(adult.gather)
+tail(adult.gather)
+
+#Create residual-fit spread plot.
+ggplot(adult.gather, aes(sample=value)) + 
+  stat_qq(distribution="qunif") + 
+  facet_grid(~type) +
+  xlab("Quantiles of standard uniform distribution") + 
+  ylab("Values from the model (cm)") +
+  ggtitle("Res-Fit Spread Plot: Model Predicting Height~Gender") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+var(adult.fitted)/(var(adult.fitted)+var(adult.res))
+```
+
+This plot implies that it is not a good model as we can see the spread of the fitted values from the model is narrow and the spread of the residuals is broad. This means that a decent chunk of variation remains in the residuals instead of the fitted values in the model. In addition, there are only two values available in the fitted values for the prediction. This limitation comes from the fact that we are predicting heights only based on gender observations. These findings can also be verified by the R^2 value (i.e. only 0.466) of the model. [Note that R^2 should be interpreted based on context/field, as this would be considered quite high in the behavioral sciences.]
